@@ -109,4 +109,27 @@ return response()->json([
     'Friendlist' => $friendListWithUserInfo,
 ], 200);
   }
+  public function getusermessage($user_id, $friend_id) {
+    $user_messages = MessageModel::where('sender', $user_id)
+        ->where('receiver', $friend_id)
+        ->orWhere(function($query) use ($user_id, $friend_id) {
+            $query->where('sender', $friend_id)
+                  ->where('receiver', $user_id);
+        })
+        ->get();
+
+    $messages = [];
+
+    foreach($user_messages as $message) {
+        $messages[] = [
+            'sender' => $message->sender,
+            'receiver' => $message->receiver,
+            'message' => $message->message,
+            'created_at' => $message->created_at,
+
+        ];
+    }
+
+    return response()->json(['messages' => $messages], 200);
+}
 }
