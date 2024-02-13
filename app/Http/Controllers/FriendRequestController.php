@@ -124,6 +124,7 @@ return response()->json([
         $messages[] = [
             'sender' => $message->sender,
             'receiver' => $message->receiver,
+            'room_id' => $message->room_id,
             'message' => $message->message,
             'created_at' => $message->created_at,
 
