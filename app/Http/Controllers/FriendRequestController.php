@@ -80,35 +80,38 @@ public function checkFriendRequest($user_id, $friend_id)
     return response()->json(['messages' => $messages], 200);
   }
   public function friendlist($user_id){
-    $friendlist = FriendRequests::where('friend_id', $user_id)
+$userToFriendRequest = FriendRequests::where('user_id', $user_id)
+->where('status','accepted')
+->get();
 
+$friendToUserRequest = FriendRequests::where('friend_id', $user_id)
+->where('status','accepted')
+->get();
+
+$userIds = $userToFriendRequest->pluck('friend_id')->merge($friendToUserRequest->pluck('user_id'))->unique();
+
+$users = User::whereIn('id', $userIds)->get();
+
+return response()->json(['friends' => $users], 200);
+
+}
+public function blocklist($user_id){
+    $userToFriendRequest = FriendRequests::where('user_id', $user_id)
+    ->where('status','blocked')
     ->get();
 
-// Fetch user information for each user_id
-$friendListWithUserInfo = [];
-foreach ($friendlist as $friend) {
-    $user = User::find($friend->user_id);
-    if ($user) {
-        $friendListWithUserInfo[] = [
-            'id' => $friend->id,
-            'user_id' => $friend->user_id,
-            'friend_id' => $friend->friend_id,
-            'status' => $friend->status,
-            'created_at' => $friend->created_at,
-            'updated_at' => $friend->updated_at,
-            'user_info' => [
-                'id' => $user->id,
-                'username' => $user->username,
-                 'email'=>$user->email,
-            ]
-        ];
-    }
-}
+    $friendToUserRequest = FriendRequests::where('friend_id', $user_id)
+    ->where('status','blocked')
+    ->get();
 
-return response()->json([
-    'Friendlist' => $friendListWithUserInfo,
-], 200);
-  }
+    $userIds = $userToFriendRequest->pluck('friend_id')->merge($friendToUserRequest->pluck('user_id'))->unique();
+
+    $users = User::whereIn('id', $userIds)->get();
+
+    return response()->json(['friends' => $users], 200);
+
+    }
+
   public function getusermessage($user_id, $friend_id) {
     $user_messages = MessageModel::where('sender', $user_id)
         ->where('receiver', $friend_id)
@@ -133,4 +136,5 @@ return response()->json([
 
     return response()->json(['messages' => $messages], 200);
 }
+
 }

@@ -21,6 +21,7 @@ Route::post('/create/message', [FriendRequestController::class,'messagelist']);
 Route::get('/get/messages', [FriendRequestController::class,'getmessages']);
 Route::get('/friend-list/{id}',[FriendRequestController::class,'friendlist']);
 Route::get('/user-message/{user_id}/{friend_id}',[FriendRequestController::class,'getusermessage']);
+Route::get('/get-blocked-user/{id}',[FriendRequestController::class,'blocklist']);
 
 
 Route::group(['namespace' => 'App\Http\Controllers\Apis'], function () {
