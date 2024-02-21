@@ -95,6 +95,46 @@ $users = User::whereIn('id', $userIds)->get();
 return response()->json(['friends' => $users], 200);
 
 }
+public function friendlistpending($user_id){
+    $userToFriendRequest = FriendRequests::where('user_id', $user_id)
+    ->where('status','pending')
+    ->get();
+
+    $friendToUserRequest = FriendRequests::where('friend_id', $user_id)
+    ->where('status','pending')
+    ->get();
+
+    // $userIds = $userToFriendRequest->pluck('friend_id')->merge($friendToUserRequest->pluck('user_id'))->unique();
+
+    // $users = User::whereIn('id', $userIds)->get();
+
+    // return response()->json(['friends' => $users], 200);
+    $friendListWithUserInfo = [];
+    $userIds = $userToFriendRequest->merge($friendToUserRequest);
+    foreach ($userIds as $friend) {
+        $user = User::find($friend->user_id);
+        if ($user) {
+            $friendListWithUserInfo[] = [
+                'id' => $friend->id,
+                'user_id' => $friend->user_id,
+                'friend_id' => $friend->friend_id,
+                'status' => $friend->status,
+                'created_at' => $friend->created_at,
+                'updated_at' => $friend->updated_at,
+                'user_info' => [
+                    'id' => $user->id,
+                    'username' => $user->username,
+                    'email'=>$user->email,
+                ]
+            ];
+        }
+    }
+
+    return response()->json([
+        'Friendlist' => $friendListWithUserInfo,
+    ], 200);
+
+    }
 public function blocklist($user_id){
     $userToFriendRequest = FriendRequests::where('user_id', $user_id)
     ->where('status','blocked')
