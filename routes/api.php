@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\FriendRequestController;
-
+use App\Http\Controllers\PostController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -23,6 +23,10 @@ Route::get('/friend-list/{id}',[FriendRequestController::class,'friendlist']);
 Route::get('/friend-pending-list/{id}',[FriendRequestController::class,'friendlistpending']);
 Route::get('/user-message/{user_id}/{friend_id}',[FriendRequestController::class,'getusermessage']);
 Route::get('/get-blocked-user/{id}',[FriendRequestController::class,'blocklist']);
+Route::post('/create/post',[PostController::class,'createpost']);
+Route::post('/like/post/{id}',[PostController::class,'likepost']);
+Route::post('/comment/post/{id}',[PostController::class,'commentpost']);
+Route::get('/getpost/{id}',[PostController::class,'getPostWithLikesAndComments']);
 
 
 Route::group(['namespace' => 'App\Http\Controllers\Apis'], function () {
