@@ -6,47 +6,79 @@ use Illuminate\Http\Request;
 use App\Models\Post;
 use App\Models\Like;
 use App\Models\Comment;
+use App\Models\User;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+
+
 class PostController extends Controller
 {
-     public function createpost(Request $request){
+    public function createpost(Request $request)
+{
+    $post = new Post();
+    $post->id = $request->input('user_id');
+    $post->title = $request->input('title');
+    $post->content = $request->input('content');
+
+    if ($request->filled('post_media')) {
+        $base64Image = $request->input('post_media');
+
+        $base64Image = preg_replace('/^data:image\/\w+;base64,/', '', $base64Image);
+
+        $imageData = base64_decode($base64Image);
+
+        $filename = 'post_media_' . Str::random(10) . '.png';
+
+        $directory = public_path('post_media');
 
 
-        // $validatedData = $request->validate([
-        //     'user_id' => 'required',
-        //     'title' => 'required',
-        //     'content' => 'required',
-        //     'post_media' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048',
-        // ]);
 
 
-        $post = new Post();
-        $post->id = $request['user_id'];
-        $post->title = $request['title'];
-        $post->content = $request['content'];
-
-
-        if ($request->hasFile('post_media')) {
-            $mediaFile = $request->file('post_media');
-            $mediaFileName = $mediaFile->getClientOriginalName();
-            $mediaPath = $mediaFile->storeAs('public/media', $mediaFileName);
-
-
-            $post->post_media = str_replace('public/', '', $mediaPath);
+        if (!file_exists($directory)) {
+            mkdir($directory, 0755, true);
         }
 
-        $post->save();
+        $filePath =    'post_media'. '/' . $filename;
+        file_put_contents($filePath, $imageData);
 
-        return response()->json($post, 201);
-     }
-     public function likePost(Request $request, $postId)
-     {
-         $like = new Like();
-         $like->post_id = $postId;
-         $like->id = $request->user_id;
-         $like->save();
 
-         return response()->json($like, 201);
-     }
+
+        $post->post_media = 'http://192.168.0.112:8000/'.$filePath;
+
+
+
+    }
+    $post->save();
+
+    $user = User::find($post->user_id);
+
+    return response()->json([
+        'post' => $post,
+        'user' => $user,
+    ], 200);
+}
+public function likepost(Request $request, $postId)
+{
+
+    $validatedData = $request->validate([
+        'user_id' => 'required',
+      
+    ]);
+
+
+    $like = new Like();
+    $like->post_id = $postId;
+    $like->id = $validatedData['user_id'];
+
+    $like->save();
+    $user = User::where('id', $like->id)->get();
+    return response()->json([
+       'like' => $like,
+        'user'=>$user
+   ], 200);
+
+}
+
      public function commentpost(Request $request, $postId)
      {
 
@@ -61,15 +93,55 @@ class PostController extends Controller
          $comment->id = $validatedData['user_id'];
          $comment->comment_content = $validatedData['content'];
          $comment->save();
+         $user = User::where('id', $comment->id)->get();
+         return response()->json([
+            'comment' => $comment,
+             'user'=>$user
+        ], 200);
 
-         return response()->json($comment, 201);
      }
      public function getPostWithLikesAndComments($userId)
      {
 
-        $posts = Post::with(['likes', 'comments'])->where('id', $userId)->get();
+         $posts = Post::where('id', $userId)->with('user')->get();
 
-         return response()->json($posts, 200);
+
+         foreach ($posts as $post) {
+
+             $post->likes = Like::where('post_id', $post->post_id)->get();
+             $post->comments = Comment::where('post_id', $post->post_id)->get();
+
+         }
+         foreach ($posts as $post) {
+            $likes = Like::where('post_id', $post->post_id)->get();
+            $comments = Comment::where('post_id', $post->post_id)->get();
+
+            foreach ($likes as $like) {
+                $likeUserId = $like->id;
+                $like->user = User::find($likeUserId);
+            }
+
+            // Loop through each comment and append user details
+            foreach ($comments as $comment) {
+                $commentUserId = $comment->id;
+                $comment->user = User::find($commentUserId);
+            }
+
+            // Assign the modified likes and comments array to the post
+            $post->likes = $likes;
+            $post->comments = $comments;
+        }
+
+
+
+
+
+         $user = User::find($userId);
+
+         return response()->json([
+             'posts' => $posts,
+             'user' => $user
+         ], 200);
      }
 
 }
