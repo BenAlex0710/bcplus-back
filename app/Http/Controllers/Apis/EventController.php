@@ -25,6 +25,8 @@ class EventController extends Controller
     {
         $user = $request->user();
         $active_package = $user->package_orders()->where('status', '1')->first();
+        print_r($active_package);
+
         $this->data['active_package'] = true;
         if (!$active_package) {
             $this->data['active_package'] = false;
@@ -646,6 +648,7 @@ class EventController extends Controller
     {
         $user = $request->user();
         $event_info = Event::find($event_id);
+         echo $event_info;
 
         if (!$event_info) {
             $this->message = __('event.invalid_event_error');

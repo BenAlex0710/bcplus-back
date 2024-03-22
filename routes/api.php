@@ -51,7 +51,7 @@ Route::group(['namespace' => 'App\Http\Controllers\Apis'], function () {
 
     Route::get('performer/{username}', 'UsersController@get_performer_profile');
 
-    Route::group(['middleware' => ['auth:api', 'not_suspended']], function () {
+    // Route::group(['middleware' => ['auth:api', 'not_suspended']], function () {
 
         Route::get('notification-count', 'CommonController@get_new_notification_count');
         Route::get('unread-messages-count', 'CommonController@get_unread_messages_count');
@@ -99,5 +99,5 @@ Route::group(['namespace' => 'App\Http\Controllers\Apis'], function () {
 
         Route::get('performer/{username}/get-reviews', 'UsersController@get_reviews');
         Route::get('performer/{username}/get-events', 'UsersController@get_events');
-    });
+    // });
 });
