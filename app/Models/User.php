@@ -10,11 +10,14 @@ use Laravel\Passport\HasApiTokens;
 use App\Models\ProfilePicture;
 use App\Models\Like;
 use App\Models\Comment;
-
+use Laravel\Cashier\Billable;
+use Cartalyst\Stripe\Laravel\Facades\Stripe;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable ,Billable;
+
+
 
     /**
      * The attributes that are mass assignable.
@@ -70,6 +73,13 @@ class User extends Authenticatable
         'rating',
         'role_label'
     ];
+    public function updateDefaultPaymentCard($stripeToken)
+    {
+
+
+        $this->updateDefaultPaymentCard($stripeToken);
+
+    }
 
     public function getFullNameAttribute()
     {
@@ -186,6 +196,40 @@ public function likes()
 public function comments()
 {
     return $this->hasMany(Comment::class);
+}
+public function addCard($token)
+{
+    $stripeCustomer = $this->createOrGetStripeCustomer();
+
+
+    if (is_array($stripeCustomer) && isset($stripeCustomer['id'])) {
+        $stripeCustomer = Stripe::customers()->find($stripeCustomer['id']);
+    }
+
+    if (!is_object($stripeCustomer)) {
+        throw new \Exception("Failed to retrieve Stripe customer object.");
+    }
+
+    $stripeCustomer->sources->create(["source" => $token]);
+}
+public function createOrGetStripeCustomer()
+{
+    if ($this->stripe_customer_id) {
+        return Stripe::customers()->find($this->stripe_customer_id);
+    }
+
+    $stripeCustomer = Stripe::customers()->create([
+        'email' => $this->email,
+    ]);
+
+    if (!$stripeCustomer) {
+        throw new \Exception("Failed to create Stripe customer.");
+    }
+
+    $this->stripe_customer_id = $stripeCustomer['id'];
+    $this->save();
+
+    return $stripeCustomer;
 }
 
 

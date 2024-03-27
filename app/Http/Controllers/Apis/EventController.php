@@ -19,100 +19,187 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use RtcTokenBuilder;
 
+use Stripe\PaymentIntent;
+use Stripe\Stripe;
+use Stripe\Charge;
+use Stripe\Transfer;
+use Stripe\Payout;
+use Stripe\Token;
+
+
+
 class EventController extends Controller
 {
     public function create(Request $request)
     {
-        $user = $request->user();
+        $userId = $request->input('user_id');
+
+        // Retrieve the user based on the user_id
+        $user = User::find($userId);
+
         $active_package = $user->package_orders()->where('status', '1')->first();
-        print_r($active_package);
 
-        $this->data['active_package'] = true;
+        // Check if there is an active package
         if (!$active_package) {
-            $this->data['active_package'] = false;
-            $this->message = __('event.no_active_package_found');
-            return $this->response(false);
+            return response()->json(['message' => __('event.no_active_package_found')], 404);
         }
 
-        if ($active_package->events == '0') {
-            $this->data['active_package'] = false;
-            $this->message = __('event.max_events_reached_limit');
-            return $this->response(false);
+        // Check if the active package has events available
+        if ($active_package->events <= 0) {
+            return response()->json(['message' => __('event.max_events_reached_limit')], 400);
         }
 
-        $active_package_data = $active_package->package_data;
-
+        // Validate the request data
         $validator = Validator::make($request->all(), [
             'title' => 'required|max:191',
             'timezone' => 'required|max:191',
             'description' => 'required',
-            'start_time' => 'required|date_format:Y-m-d H:i|before:' . $active_package->expiry_date . ' 23:59',
-            'end_time' => 'required|date_format:Y-m-d H:i|before:' . $active_package->expiry_date . ' 23:59',
-            'joining_fee' => 'required|regex:/^\d+(\.\d{1,2})?$/',
+            'start_time' => 'required|date_format:Y-m-d H:i',
+            'end_time' => 'required|date_format:Y-m-d H:i|after:start_time',
+            'joining_fee' => 'required|numeric',
             'event_type_id' => 'required|exists:setting_options,id',
-            'guests' => 'nullable|array|max:' . $active_package_data->max_guests,
+            'guests' => 'nullable|array',
             'banner' => 'required'
         ]);
 
         if ($validator->fails()) {
-            $this->errors = $validator->errors();
-            return $this->response();
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $end_time = Carbon::parse($request->end_time);
-        $start_time = Carbon::parse($request->start_time);
-        $diff_min = $end_time->diffInMinutes($start_time);
-
-        if ($diff_min > $active_package_data->event_max_duration) {
-            $this->message = __('event.max_duration_error', ['duration' => $active_package_data->event_max_duration]);
-            return $this->response(false);
-        }
-
-        $data = [
+        // Create the event
+        $event = $user->events()->create([
             'title' => $request->title,
-            'joining_fee' => $request->joining_fee,
-            'start_time' => $request->start_time,
-            'end_time' => $request->end_time,
             'timezone' => $request->timezone,
             'description' => $request->description,
+            'start_time' => $request->start_time,
+            'end_time' => $request->end_time,
+            'joining_fee' => $request->joining_fee,
             'notification' => $request->notification,
             'event_type_id' => $request->event_type_id,
-            'package_order_id' => $active_package->id,
-        ];
+            'banner' => $request->banner,
+            'package_order_id' => $active_package->id
+        ]);
 
-        if ($request->filled('banner')) {
-            $image = base64_to_image($request->banner, '/event_banners', 'banner_' . time());
-            if (!$image['status']) {
-                $this->message = $image['message'];
-                return $this->response(false);
+        // Decrease the available events count in the package
+        $active_package->events--;
+        $active_package->save();
+
+        // Create tickets if provided
+        if ($request->has('tickets') && is_array($request->tickets)) {
+            foreach ($request->tickets as $ticket) {
+                $event->tickets()->create([
+                    'name' => $ticket['name'],
+                    'description' => $ticket['description'],
+                    'price' => $ticket['price'],
+                    'quantity' => $ticket['quantity'],
+                ]);
             }
-            $data['banner'] = $image['image_path'];
         }
 
-        if ($event = $user->events()->create($data)) {
-            $active_package->events = ($active_package->events - 1);
-            $active_package->save();
-            if (is_array($request->guests)) {
-                foreach ($request->guests as $guest) {
-                    $event->guests()->create([
-                        'user_id' => $guest
-                    ]);
-                }
-            }
-            $this->message = __('event.created_success_message');
-        }
-        return $this->response();
+        return response()->json(['message' => __('event.created_success_message'), 'event' => $event], 201);
     }
 
-    public function list(Request $request)
+        public function processPayment(Request $request)
+        {
+           Stripe::setApiKey(env('STRIPE_SECRET'));
+
+try {
+
+    $ticketAmount = $request->input('ticket_amount');
+
+    $charge = Charge::create([
+        "amount" => $ticketAmount * 100,
+        "currency" => "usd",
+        "source" => $request->stripeToken,
+        "description" => "Payment for event tickets with platform fee."
+    ]);
+
+
+
+
+
+    return response()->json(['message' => 'Payment successful', 'ticketAmount' => $ticketAmount], 200);
+} catch (\Exception $e) {
+    return response()->json(['error' => $e->getMessage()], 500);
+}
+        }
+
+        public function initiateWithdrawal(Request $request)
+        {
+            // Validate user ID and withdrawal amount
+            $validator = Validator::make($request->all(), [
+                'user_id' => 'required|integer|exists:users,id', // Ensure valid user ID
+                'amount' => 'required|numeric|min:0', // Ensure positive withdrawal amount
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['error' => $validator->errors()], 422);
+            }
+
+            Stripe::setApiKey(env('STRIPE_SECRET'));
+
+            try {
+
+                $user = User::find($request->user_id);
+
+
+                $stripeCustomerId = $user->stripe_customer_id;
+
+
+                if (empty($stripeCustomerId)) {
+                    return response()->json(['error' => 'User does not have a Stripe customer ID'], 400);
+                }
+
+                $payout = Payout::create([
+                    'amount' => $request->amount * 100,
+                    'currency' => 'usd',
+                    'destination' => $stripeCustomerId,
+                ]);
+
+
+                $user->withdrawals()->create([
+                    'amount' => $request->amount,
+                    'status' => 'initiated',
+                ]);
+
+                return response()->json(['message' => 'Withdrawal initiated successfully'], 200);
+            } catch (Stripe\Exception\InvalidRequestException $e) {
+                return response()->json(['error' => $e->getMessage()], 400);
+            } catch (\Exception $e) {
+                // Catch other generic exceptions (e.g., network issues)
+                report($e); // Log the error for investigation
+                return response()->json(['error' => 'Withdrawal failed. Please try again later.'], 500);
+            }
+        }
+
+
+
+    /**
+     * Calculate the platform fee.
+     *
+     * @param  float  $amount
+     * @return float
+     */
+    private function calculatePlatformFee($amount)
     {
+        // Implement your logic to calculate the platform fee
+        // For example, you can charge a fixed percentage of the transaction amount
+        return $amount * 0.05; // Charging 5% platform fee
+    }
+
+
+
+
+    public function list(Request $request,$id)
+    {
+
         $page = 1;
         $limit = 20;
         if ($request->filled('page')) {
             $page = $request->page;
         }
         $offset = ($page - 1) * $limit;
-        $user = $request->user();
+        $user = User::find($id);
         $events = $user->events()
             ->latest()
             ->limit($limit)

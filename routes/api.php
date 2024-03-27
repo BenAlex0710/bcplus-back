@@ -4,6 +4,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\FriendRequestController;
 use App\Http\Controllers\PostController;
+use App\Http\Controllers\BillingController;
+use App\Http\Controllers\Apis\EventController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -28,6 +30,11 @@ Route::post('/like/post/{id}',[PostController::class,'likepost']);
 Route::post('/comment/post/{id}',[PostController::class,'commentpost']);
 Route::get('/getpost/{id}',[PostController::class,'getPostWithLikesAndComments']);
 
+Route::post('/billing/add-card',[BillingController::class,'addCard']);
+Route::post('create-event', [EventController::class,'create']);
+Route::get('/events/list/{id}',[EventController::class,'list']);
+Route::post('/ticket/payment',[EventController::class,'processPayment']);
+Route::post('/stripe/payout',[EventController::class,'initiateWithdrawal']);
 
 Route::group(['namespace' => 'App\Http\Controllers\Apis'], function () {
 

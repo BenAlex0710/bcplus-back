@@ -7,6 +7,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use App\Models\TicketModel;
 
 class Event extends Model
 {
@@ -151,5 +152,9 @@ class Event extends Model
     public function guests()
     {
         return $this->hasMany('App\Models\EventGuest');
+    }
+    public function tickets()
+    {
+        return $this->hasMany(TicketModel::class);
     }
 }

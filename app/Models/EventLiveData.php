@@ -35,4 +35,5 @@ class EventLiveData extends Model
     {
         return $this->hasOne('App\Models\Event', 'id', 'event_id');
     }
+    
 }
